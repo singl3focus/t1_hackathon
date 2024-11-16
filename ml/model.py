@@ -29,6 +29,67 @@ class ClusterModel:
             raise ValueError("Loaded data is empty.")
         print("Data loaded successfully from JSON.")
 
+    def preprocess(self) -> None:
+        if self.df.empty:
+            raise ValueError("Data not loaded. Please run load_data() first.")
+
+        self.df = self.df.drop(columns=["sprintName", "blockedBy", "blocks", "priorityId", "assignee_summary"], errors="ignore")
+
+        category_columns = self.df.select_dtypes(include='object').columns.drop(['sprintStartDate', 'sprintEndDate'], errors='ignore')
+        for feature in category_columns:
+            le = LabelEncoder()
+            self.df[f'{feature}_encoded'] = le.fit_transform(self.df[feature].astype(str))
+        self.df = self.df.drop(columns=category_columns)
+
+        numeric_columns = self.df.select_dtypes(exclude='object').columns.drop(['sprintId'], errors='ignore')
+        for col in numeric_columns:
+            self.df[col] = self.df[col].fillna(self.df[col].mean())
+
+        self.df = self.df.drop(columns=['sprintStartDate', 'sprintEndDate'], errors='ignore')
+
+        self._remove_highly_correlated_features()
+        print("Data preprocessing complete.")
+
+    def _remove_highly_correlated_features(self) -> None:
+        corr_matrix = self.df.corr()
+        col_corr = set()
+        for i in range(len(corr_matrix.columns)):
+            for j in range(i):
+                if corr_matrix.iloc[i, j] >= self.corr_threshold:
+                    colname = corr_matrix.columns[i]
+                    col_corr.add(colname)
+        self.df.drop(columns=list(col_corr), inplace=True)
+
+    def aggregate_features(self) -> None:
+        if self.df.empty:
+            raise ValueError("Data not preprocessed. Please run preprocess() first.")
+
+        self.aggregated_features = self.df.groupby('sprintId').agg({
+            'priority': ['mean', 'sum'],
+            'storyPoint': ['mean', 'sum'],
+            'issueLinks': ['mean', 'sum'],
+            'votes': ['mean', 'sum'],
+            'watchcount': ['mean', 'sum'],
+            'subtasks': ['mean', 'sum'],
+            'initialStoryPoint': ['mean', 'sum'],
+            'totalNumberOfIssues': ['mean', 'sum'],
+            'completedIssuesCount': ['mean', 'sum'],
+            'puntedIssues': ['mean', 'sum'],
+            'issuesNotCompletedInCurrentSprint': ['mean', 'sum'],
+            'completedIssuesEstimateSum': ['mean', 'sum'],
+            'NoOfDevelopers': ['mean', 'sum'],
+            'SprintLength': ['mean', 'sum'],
+            'issueType_encoded': 'sum',
+            'status_issues_encoded': 'sum',
+            'status_summary_encoded': ['mean', 'sum'],
+            'sprintState_encoded': 'sum'
+        }).reset_index()
+
+        self.aggregated_features.columns = ['_'.join(col).strip() if isinstance(col, tuple) else col for col in self.aggregated_features.columns]
+        print("Feature aggregation complete.")
+
+
+
     def train_model(self, scaled_features: pd.DataFrame) -> pd.DataFrame:
         if self.model_pipeline is None:
             self.model_pipeline = Pipeline([
