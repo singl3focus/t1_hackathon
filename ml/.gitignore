@@ -7,9 +7,6 @@ __pycache__/
 # Файлы моделей
 model_pipeline.pkl
 
-# Папка с данными
-data/
-
 # Jupyter Notebook с результатами
 *.ipynb
 
