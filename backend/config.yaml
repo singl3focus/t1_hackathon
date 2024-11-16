@@ -1,0 +1,22 @@
+
+# Server configurations
+server:
+  host: "localhost"
+  port: "5001"
+
+# Database credentials
+database:
+  host: "db" # name of db conatiner 
+  port: "5432"
+  user: "postgres"
+  password: "qwerty"
+  dbname: "postgres"
+  sslmode: "disable"
+
+# Logger configurations
+logger:
+  logs_dir: "./logs"
+  enable: true
+  level: "DEBUG"
+  format: "LOG"
+  saving_days: 3
