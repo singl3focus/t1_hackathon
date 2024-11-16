@@ -9,12 +9,36 @@ import pickle
 
 
 class ClusterModel:
-    def __init__(self, corr_threshold: float = 0.9, model_path: str = 'model_pipeline.pkl'):
+    def __init__(self, csv_path: str = 'data/final_table.csv', corr_threshold: float = 0.9, model_path: str = 'model_pipeline.pkl'):
+        """
+        Инициализирует класс, загружает данные из CSV и производит предобучение.
+        """
         self.corr_threshold: float = corr_threshold
         self.model_path: str = model_path
         self.df: pd.DataFrame = pd.DataFrame()
         self.aggregated_features: pd.DataFrame = pd.DataFrame()
         self.model_pipeline: Pipeline = None
+        
+        # Загрузка данных из CSV
+        self.load_data_from_csv(csv_path)
+        self.preprocess()
+        self.aggregate_features()
+        self.train_model(self.scale_features(self.aggregated_features))
+        print("Model initialized and trained using data from CSV.")
+
+    def load_data_from_csv(self, csv_path: str) -> None:
+        """
+        Загружает данные из CSV файла.
+        """
+        try:
+            self.df = pd.read_csv(csv_path)
+            if self.df.empty:
+                raise ValueError("CSV file is empty.")
+            print(f"Data successfully loaded from {csv_path}.")
+        except FileNotFoundError:
+            raise ValueError(f"CSV file not found at {csv_path}.")
+    
+    # Остальные методы класса без изменений...
 
     def load_model(self) -> None:
         """
@@ -40,30 +64,54 @@ class ClusterModel:
             raise ValueError("Loaded data is empty.")
         print("Data loaded successfully from JSON.")
 
-    def preprocess(self) -> None:
-        print("Columns before preprocessing:", self.df.columns)
+    def preprocess(data: pd.DataFrame) -> pd.DataFrame:
+        
+        """
+        Preprocessing + aggregating data
+        
+        **sprint_name** - Название спринта(по нему происходит агрегация)
 
-        if self.df.empty:
-            raise ValueError("Data not loaded. Please run load_data() first.")
+        **mean_estimation, median_estimation, sum_estimation** - ['mean', 'median', 'sum']  
+        # Средняя, медианная и суммарная оценка времени выполнения задачи (в часах)
 
-        self.df = self.df.drop(columns=["sprintName", "blockedBy", "blocks", "priorityId", "assignee_summary"], errors="ignore")
+        **avg_completion_time** - 'mean',  # Среднее время выполнения задач
 
-        category_columns = self.df.select_dtypes(include='object').columns.drop(['sprintStartDate', 'sprintEndDate'], errors='ignore')
-        for feature in category_columns:
-            le = LabelEncoder()
-            self.df[f'{feature}_encoded'] = le.fit_transform(self.df[feature].astype(str))
-        self.df = self.df.drop(columns=category_columns)
+        **completion_rate** - # Доля завершённых задач
 
-        numeric_columns = self.df.select_dtypes(exclude='object').columns.drop(['sprintId'], errors='ignore')
-        for col in numeric_columns:
-            self.df[col] = self.df[col].fillna(self.df[col].mean())
+        **rejected_rate** - # Доля отклонённых задач
 
-        self.df = self.df.drop(columns=['sprintStartDate', 'sprintEndDate'], errors='ignore')
+        **defects** - # Количество дефектов
 
-        # self._remove_highly_correlated_features()
-        print("Columns after preprocessing:", self.df.columns)
+        **critical_tasks** - # Количество критических задач
 
-        print("Data preprocessing complete.")
+        **task_count** - # Общее количество задач
+
+        return: aggregated data
+
+        """
+        data['create_date'] = pd.to_datetime(data['create_date'], errors='coerce')
+        data['update_date'] = pd.to_datetime(data['update_date'], errors='coerce')
+        data['sprint_start_date'] = pd.to_datetime(data['sprint_start_date'], errors='coerce')
+        data['sprint_end_date'] = pd.to_datetime(data['sprint_end_date'], errors='coerce')
+
+        data['completion_time'] = (data['update_date'] - data['create_date']).dt.total_seconds() / 3600  # В часах
+
+        # Метрики для каждого спринта
+        agg_sprint_metricks = data.groupby('sprint_name').agg({
+            'estimation': ['mean', 'median', 'sum'],  # Средняя, медианная и суммарная оценка
+            'status': lambda x: (x.isin(['Закрыто', 'Готово']).sum()) / len(x),  # Доля завершённых задач
+            'resolution': lambda x: (x == 'Отклонено').sum() / len(x),  # Доля отклонённых задач
+            'completion_time': 'mean',  # Среднее время выполнения задач
+            'type': lambda x: (x == 'Дефект').sum(),  # Количество дефектов
+            'priority': lambda x: (x == 'Критический').sum(),  # Количество критических задач
+            'entity_id': 'count'  # Общее количество задач
+        }).reset_index()
+
+        agg_sprint_metricks.columns = ['sprint_name', 'mean_estimation', 'median_estimation', 'sum_estimation',
+                                'completion_rate', 'rejected_rate', 'avg_completion_time',
+                                'defects', 'critical_tasks', 'task_count']
+        
+        return agg_sprint_metricks
 
     def _remove_highly_correlated_features(self) -> None:
         corr_matrix = self.df.corr()
@@ -75,38 +123,6 @@ class ClusterModel:
                     col_corr.add(colname)
         self.df.drop(columns=list(col_corr), inplace=True)
 
-    def aggregate_features(self) -> None:
-        print("Columns before aggregation:", self.df.columns)
-
-        if self.df.empty:
-            raise ValueError("Data not preprocessed. Please run preprocess() first.")
-
-        self.aggregated_features = self.df.groupby('sprintId').agg({
-            'priority': ['mean', 'sum'],
-            'storyPoint': ['mean', 'sum'],
-            'issueLinks': ['mean', 'sum'],
-            'votes': ['mean', 'sum'],
-            'watchcount': ['mean', 'sum'],
-            'subtasks': ['mean', 'sum'],
-            'initialStoryPoint': ['mean', 'sum'],
-            'totalNumberOfIssues': ['mean', 'sum'],
-            'completedIssuesCount': ['mean', 'sum'],
-            'puntedIssues': ['mean', 'sum'],
-            'issuesNotCompletedInCurrentSprint': ['mean', 'sum'],
-            'completedIssuesEstimateSum': ['mean', 'sum'],
-            'NoOfDevelopers': ['mean', 'sum'],
-            'SprintLength': ['mean', 'sum'],
-            'issueType_encoded': 'sum',
-            'status_issues_encoded': 'sum',
-            'status_summary_encoded': ['mean', 'sum'],
-            'sprintState_encoded': 'sum'
-        }).reset_index()
-
-        self.aggregated_features.columns = ['_'.join(col).strip() if isinstance(col, tuple) else col for col in self.aggregated_features.columns]
-        print("Feature aggregation complete.")
-
-
-
     def train_model(self, scaled_features: pd.DataFrame) -> pd.DataFrame:
         if self.model_pipeline is None:
             n_components = min(scaled_features.shape[1], scaled_features.shape[0], 10)
@@ -115,7 +131,6 @@ class ClusterModel:
 
             self.model_pipeline = Pipeline([
                 ('scaler', RobustScaler()),
-                ('pca', PCA(n_components=n_components)),
                 ('kmeans', KMeans(n_clusters=2, random_state=42))
             ])
             scaled_features['cluster'] = self.model_pipeline.fit_predict(scaled_features)
