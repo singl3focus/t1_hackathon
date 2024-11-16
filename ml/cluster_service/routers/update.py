@@ -23,7 +23,6 @@ def update_model(input_data: InputData):
 
         # Предобработка данных
         model.preprocess()
-        model.aggregate_features()
 
         # Обновление модели
         updated_data = model.update_model(model.aggregated_features)

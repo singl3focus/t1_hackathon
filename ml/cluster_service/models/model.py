@@ -9,7 +9,7 @@ import pickle
 
 
 class ClusterModel:
-    def __init__(self, csv_path: str = 'data/final_table.csv', corr_threshold: float = 0.9, model_path: str = 'model_pipeline.pkl'):
+    def __init__(self, csv_path: str = 'models/data/final_table.csv', corr_threshold: float = 0.9, model_path: str = 'model_pipeline.pkl'):
         """
         Инициализирует класс, загружает данные из CSV и производит предобучение.
         """
@@ -21,8 +21,7 @@ class ClusterModel:
         
         # Загрузка данных из CSV
         self.load_data_from_csv(csv_path)
-        self.preprocess()
-        self.aggregate_features()
+        self.df = self.preprocess(self.df)
         self.train_model(self.scale_features(self.aggregated_features))
         print("Model initialized and trained using data from CSV.")
 
@@ -58,13 +57,16 @@ class ClusterModel:
             pickle.dump(self.model_pipeline, f)
         print(f"Model saved to {self.model_path}.")
 
-    def load_data_from_json(self, json_data: dict) -> None:
+    def load_data_from_json(self, json_data: dict) -> pd.DataFrame:
         self.df = pd.DataFrame(json_data["data"])
         if self.df.empty:
             raise ValueError("Loaded data is empty.")
+
         print("Data loaded successfully from JSON.")
 
-    def preprocess(data: pd.DataFrame) -> pd.DataFrame:
+        return self.df        
+
+    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
         
         """
         Preprocessing + aggregating data
@@ -124,6 +126,8 @@ class ClusterModel:
         self.df.drop(columns=list(col_corr), inplace=True)
 
     def train_model(self, scaled_features: pd.DataFrame) -> pd.DataFrame:
+        if scaled_features.empty:
+            raise ValueError("No features provided for training. Ensure data preprocessing and scaling steps are correct.")
         if self.model_pipeline is None:
             n_components = min(scaled_features.shape[1], scaled_features.shape[0], 10)
             if n_components < 1:
@@ -160,7 +164,6 @@ class ClusterModel:
     def run(self) -> pd.DataFrame:
         self.load_data_from_json()
         self.preprocess()
-        self.aggregate_features()
         scaled_features = self.scale_features(self.aggregated_features)
         result = self.train_model(scaled_features)
         self.save_model()

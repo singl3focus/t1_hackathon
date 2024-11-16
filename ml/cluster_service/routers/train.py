@@ -21,7 +21,6 @@ def train_model(input_data: InputData):
             raise HTTPException(status_code=400, detail="Input data is empty.")
 
         model.preprocess()
-        model.aggregate_features()
         scaled_features = model.scale_features(model.aggregated_features)
         trained_data = model.train_model(scaled_features)
         model.save_model()
