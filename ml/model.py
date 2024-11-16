@@ -7,9 +7,8 @@ from sklearn.decomposition import PCA
 from typing import Tuple
 
 class ClusterModel:
-    def __init__(self, data_path: str, n_clusters: int = 2, corr_threshold: float = 0.9):
+    def __init__(self, data_path: str, corr_threshold: float = 0.9):
         self.data_path: str = data_path
-        self.n_clusters: int = n_clusters
         self.corr_threshold: float = corr_threshold
         self.df: pd.DataFrame = pd.DataFrame()
         self.aggregated_features: pd.DataFrame = pd.DataFrame()
@@ -93,7 +92,7 @@ class ClusterModel:
         self.model_pipeline = Pipeline([
             ('scaler', RobustScaler()),
             ('pca', PCA(n_components=min(scaled_features.shape[1], 10))),
-            ('kmeans', KMeans(n_clusters=self.n_clusters, random_state=42))
+            ('kmeans', KMeans(n_clusters=2, random_state=42))
         ])
 
         scaled_features['cluster'] = self.model_pipeline.fit_predict(scaled_features)
