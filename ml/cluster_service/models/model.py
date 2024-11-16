@@ -22,7 +22,7 @@ class ClusterModel:
         # Загрузка данных из CSV
         self.load_data_from_csv(csv_path)
         self.df = self.preprocess(self.df)
-        self.train_model(self.scale_features(self.aggregated_features))
+        self.train_model(self.scale_features(self.df))
         print("Model initialized and trained using data from CSV.")
 
     def load_data_from_csv(self, csv_path: str) -> None:
@@ -157,14 +157,15 @@ class ClusterModel:
         return scaled_data
 
     def scale_features(self, data: pd.DataFrame) -> pd.DataFrame:
-        scaler: StandardScaler = self.model_pipeline.named_steps['scaler'] if self.model_pipeline else StandardScaler()
+        scaler = RobustScaler() if self.model_pipeline is None else self.model_pipeline.named_steps['scaler']
         scaled_data = scaler.fit_transform(data)
         return pd.DataFrame(scaled_data, columns=data.columns)
 
-    def run(self) -> pd.DataFrame:
-        self.load_data_from_json()
-        self.preprocess()
-        scaled_features = self.scale_features(self.aggregated_features)
-        result = self.train_model(scaled_features)
-        self.save_model()
-        return result
+
+    # def run(self) -> pd.DataFrame:
+    #     self.load_data_from_json()
+    #     self.preprocess()
+    #     scaled_features = self.scale_features(self.aggregated_features)
+    #     result = self.train_model(scaled_features)
+    #     self.save_model()
+    #     return result
