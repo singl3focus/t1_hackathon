@@ -4,7 +4,6 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler, RobustScaler
 from sklearn.pipeline import Pipeline
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
-from typing import Tuple
 import pickle
 
 
@@ -37,8 +36,6 @@ class ClusterModel:
         except FileNotFoundError:
             raise ValueError(f"CSV file not found at {csv_path}.")
     
-    # Остальные методы класса без изменений...
-
     def load_model(self) -> None:
         """
         Загружает обученную модель из файла.
@@ -67,30 +64,10 @@ class ClusterModel:
         return self.df        
 
     def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
-        
         """
         Preprocessing + aggregating data
-        
-        **sprint_name** - Название спринта(по нему происходит агрегация)
-
-        **mean_estimation, median_estimation, sum_estimation** - ['mean', 'median', 'sum']  
-        # Средняя, медианная и суммарная оценка времени выполнения задачи (в часах)
-
-        **avg_completion_time** - 'mean',  # Среднее время выполнения задач
-
-        **completion_rate** - # Доля завершённых задач
-
-        **rejected_rate** - # Доля отклонённых задач
-
-        **defects** - # Количество дефектов
-
-        **critical_tasks** - # Количество критических задач
-
-        **task_count** - # Общее количество задач
-
-        return: aggregated data
-
         """
+        # Преобразование дат в datetime
         data['create_date'] = pd.to_datetime(data['create_date'], errors='coerce')
         data['update_date'] = pd.to_datetime(data['update_date'], errors='coerce')
         data['sprint_start_date'] = pd.to_datetime(data['sprint_start_date'], errors='coerce')
@@ -110,10 +87,13 @@ class ClusterModel:
         }).reset_index()
 
         agg_sprint_metricks.columns = ['sprint_name', 'mean_estimation', 'median_estimation', 'sum_estimation',
-                                'completion_rate', 'rejected_rate', 'avg_completion_time',
-                                'defects', 'critical_tasks', 'task_count']
-        
-        return agg_sprint_metricks
+                                       'completion_rate', 'rejected_rate', 'avg_completion_time',
+                                       'defects', 'critical_tasks', 'task_count']
+
+        # Исключаем текстовый столбец 'sprint_name'
+        numeric_data = agg_sprint_metricks.drop(columns=['sprint_name'])
+
+        return numeric_data
 
     def _remove_highly_correlated_features(self) -> None:
         corr_matrix = self.df.corr()
@@ -157,15 +137,8 @@ class ClusterModel:
         return scaled_data
 
     def scale_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        # Убедимся, что обрабатываем только числовые данные
+        data = data.select_dtypes(include=[np.number])
         scaler = RobustScaler() if self.model_pipeline is None else self.model_pipeline.named_steps['scaler']
         scaled_data = scaler.fit_transform(data)
         return pd.DataFrame(scaled_data, columns=data.columns)
-
-
-    # def run(self) -> pd.DataFrame:
-    #     self.load_data_from_json()
-    #     self.preprocess()
-    #     scaled_features = self.scale_features(self.aggregated_features)
-    #     result = self.train_model(scaled_features)
-    #     self.save_model()
-    #     return result
