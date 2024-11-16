@@ -21,8 +21,10 @@ async def predict_clusters(input_data: InputData):
         cluster_model.aggregate_features()
         scaled_features = cluster_model.scale_features(cluster_model.aggregated_features)
         result = cluster_model.train_model(scaled_features)
+
+        cluster_info = result["cluster"].tolist()
         
         # Преобразование результата в JSON
-        return {"clusters": result.to_dict(orient="records")}
+        return {"clusters": cluster_info}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
