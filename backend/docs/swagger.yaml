@@ -1,0 +1,436 @@
+basePath: /
+definitions:
+  http.Error:
+    properties:
+      error:
+        type: string
+    type: object
+  http.Result:
+    properties:
+      message:
+        type: string
+    type: object
+  http.UpdateSprintStatusRequest:
+    properties:
+      new_status:
+        type: string
+      sprint_id:
+        type: integer
+    type: object
+  http.UpdateTaskStatesRequest:
+    properties:
+      entity_id:
+        type: integer
+      new_state:
+        type: string
+    type: object
+  http.UpdateTaskStatusRequest:
+    properties:
+      entity_id:
+        type: integer
+      new_status:
+        type: string
+    type: object
+  models.Sprint:
+    properties:
+      entity_ids:
+        items:
+          type: integer
+        type: array
+      sprint_end_date:
+        type: string
+      sprint_id:
+        type: integer
+      sprint_name:
+        type: string
+      sprint_start_date:
+        type: string
+      sprint_status:
+        type: string
+    type: object
+  models.Task:
+    properties:
+      area:
+        type: string
+      assignee:
+        description: может быть NULL
+        type: string
+      create_date:
+        type: string
+      created_by:
+        type: string
+      due_date:
+        description: может быть NULL
+        type: string
+      entity_id:
+        type: integer
+      estimation:
+        description: может быть NULL
+        type: number
+      name:
+        type: string
+      owner:
+        type: string
+      parent_ticket_id:
+        description: может быть NULL
+        type: integer
+      priority:
+        type: string
+      rank:
+        type: string
+      resolution:
+        description: может быть NULL
+        type: string
+      spent:
+        description: может быть NULL
+        type: number
+      state:
+        type: string
+      status:
+        type: string
+      ticket_number:
+        type: string
+      type:
+        type: string
+      update_date:
+        type: string
+      updated_by:
+        type: string
+    type: object
+  models.TaskChange:
+    properties:
+      entity_id:
+        type: integer
+      history_change:
+        type: string
+      history_change_type:
+        type: string
+      history_date:
+        type: string
+      history_property_name:
+        type: string
+      history_version:
+        type: number
+    type: object
+host: localhost
+info:
+  contact: {}
+  description: This is a backend server for T1 hackaton.
+  termsOfService: http://swagger.io/terms/
+  title: T1 Hackaton API
+  version: "1.0"
+paths:
+  /sprint/add:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Sprint
+        in: body
+        name: sprint
+        required: true
+        schema:
+          $ref: '#/definitions/models.Sprint'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Add single sprint
+      tags:
+      - sprint
+  /sprint/all:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Sprint'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Get array of sprints
+      tags:
+      - sprint
+  /sprint/task/all:
+    post:
+      parameters:
+      - description: GetAllSprintTasks
+        in: query
+        name: sprint_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Task'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Get all sprint tasks
+      tags:
+      - sprint
+  /sprint/update-status:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: UpdateSprintStatus
+        in: body
+        name: updatesprint
+        required: true
+        schema:
+          $ref: '#/definitions/http.UpdateSprintStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Update status of sprint
+      tags:
+      - sprint
+  /sprints/add:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Sprints
+        in: body
+        name: sprint
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.Sprint'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Add array of sprints
+      tags:
+      - sprint
+  /task/add:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: AddTasks
+        in: body
+        name: task
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.Task'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Add array of tasks
+      tags:
+      - task
+  /task/changes/all:
+    get:
+      parameters:
+      - description: GetTaskChanges
+        in: query
+        name: entity_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TaskChange'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Get task changes by entity_id(task_id)
+      tags:
+      - changes
+  /task/get-by-ticketnumber:
+    get:
+      parameters:
+      - description: GetTaskByTicketNumber
+        in: query
+        name: ticket_number
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Task'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Get task by TicketNumber
+      tags:
+      - task
+  /task/update-state:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: UpdateTaskState
+        in: body
+        name: updatestate
+        required: true
+        schema:
+          $ref: '#/definitions/http.UpdateTaskStatesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Update state of task
+      tags:
+      - task
+  /task/update-status:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: UpdateSprintStatus
+        in: body
+        name: updatestatus
+        required: true
+        schema:
+          $ref: '#/definitions/http.UpdateTaskStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Update status of task
+      tags:
+      - task
+  /tasks/changes/add:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: AddTasksChanges
+        in: body
+        name: taskschanges
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.TaskChange'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.Error'
+      summary: Add array of tasks changes
+      tags:
+      - changes
+swagger: "2.0"
