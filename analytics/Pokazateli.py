@@ -5,9 +5,9 @@ import ast
 
 # Шаг 1: Загрузка данных и предварительная обработка
 # Загрузка данных из CSV файлов
-data = pd.read_csv('C:/Users/Alexe/OneDrive/Рабочий стол/data_for_spb_hakaton_entities1-Table 1.csv', sep=';', low_memory=False)
-history = pd.read_csv('C:/Users/Alexe/OneDrive/Рабочий стол/history-Table 1.csv', sep=';', low_memory=False)
-sprints = pd.read_csv('C:/Users/Alexe/OneDrive/Рабочий стол/sprints-Table 1.csv', sep=';', low_memory=False)
+data = pd.read_csv('C:/Users/denis/OneDrive/Рабочий стол/T1_hack/t1_hackathon/analytics/data_for_spb_hakaton_entities1-Table_1.csv', sep=';', low_memory=False)
+history = pd.read_csv('C:/Users/denis/OneDrive/Рабочий стол/T1_hack/t1_hackathon/analytics/history-Table_1.csv', sep=';', low_memory=False)
+sprints = pd.read_csv('C:/Users/denis/OneDrive/Рабочий стол/T1_hack/t1_hackathon/analytics/sprints-Table_1.csv', sep=';', low_memory=False)
 
 # Преобразование дат в формат datetime
 data['create_date'] = pd.to_datetime(data['create_date'], errors='coerce')
@@ -315,8 +315,9 @@ for idx, sprint in sprints.iterrows():
 # Объединяем результаты всех спринтов
 final_results = pd.concat(sprint_results, ignore_index=True)
 
-output_path = 'D:/final_results.csv'
-final_results.to_csv(output_path, index=False, encoding='utf-8-sig')
+# output_path = 'D:/final_results.csv'
+# final_results.to_csv(output_path, index=False, encoding='utf-8-sig')
 
 # Выводим результаты
 print(final_results.head(30))
+print(final_results['Бэклог изменен с начала спринта на'])
