@@ -1,297 +1,292 @@
 import pandas as pd
-import numpy as np
-from datetime import timedelta
-import ast
 
-# Шаг 1: Загрузка данных и предварительная обработка
-# Загрузка данных из CSV
-data = pd.read_csv('C:/Users/Alexe/OneDrive/Рабочий стол/data_for_spb_hakaton_entities1-Table 1.csv', sep=';', low_memory=False)
-history = pd.read_csv('C:/Users/Alexe/OneDrive/Рабочий стол/history-Table 1.csv', sep=';', low_memory=False)
-sprints = pd.read_csv('C:/Users/Alexe/OneDrive/Рабочий стол/sprints-Table 1.csv', sep=';', low_memory=False)
+# Загрузка данных
+data = pd.read_csv('data_for_spb_hakaton_entities1-Table 1.csv', sep=';')
+history = pd.read_csv('history-Table 1.csv', sep=';', index_col=None)
+sprints = pd.read_csv('sprints-Table 1.csv', sep=';', index_col=None)
 
-data['create_date'] = pd.to_datetime(data['create_date'], errors='coerce')
-data['update_date'] = pd.to_datetime(data['update_date'], errors='coerce')
-history['history_date'] = pd.to_datetime(history['history_date'], errors='coerce')
+# Сдвиг колонок влево, чтобы "entity_id" стало первой колонкой
+history = history.reset_index()  # Сброс индекса
+columns = history.columns.tolist()  # Получаем текущий список колонок
+columns = columns[1:] + columns[:1]  # Перемещаем первую колонку в конец
+history.columns = columns  # Переупорядочиваем названия колонок
+if 'index' in history.columns:
+    history.drop(columns=['index'], inplace=True)
+
+# Разделение entity_ids в таблице sprints
+sprints['entity_ids'] = sprints['entity_ids'].apply(lambda x: x.strip('{}').split(',') if pd.notnull(x) else [])
+sprints_expanded = sprints.explode('entity_ids')
+sprints_expanded['entity_id'] = sprints_expanded['entity_ids'].astype(float)
+
+# Удаляем строки с некорректным типом в entity_id из history
+history = history[history['entity_id'].apply(lambda x: isinstance(x, (int, float)))]
+
+# Приведение entity_id в обоих таблицах к одному типу (float)
+data['entity_id'] = data['entity_id'].astype(float)
+history['entity_id'] = history['entity_id'].astype(float)
+
+# Соединение data и sprints
+data_sprints = pd.merge(data, sprints_expanded, on='entity_id', how='left')
+
+# Соединение data_sprints с history
+final_table = pd.merge(data_sprints, history, on='entity_id', how='left')
+
+# Просмотр результата
+print(final_table.head())
+
+# Если требуется сохранение в файл
+final_table.to_csv('merged_data.csv', index=False)
+
+data = final_table.copy()
+
+
+# Условия для фильтрации задач
+valid_statuses = ["Закрыто", "Выполнено"]
+valid_resolutions = ["Отклонено", "Отменено инициатором", "Дубликат", "Отклонён исполнителем"]
+
+# Инициализация метрик
+daily_metrics = []
+
+# Преобразование дат в DataFrame
+data['history_date'] = pd.to_datetime(data['history_date'], errors='coerce')
+
+# Получение уникальных спринтов
+unique_sprints = data['sprint_name'].unique()
+
+# Цикл по каждому спринту
+for sprint_name in unique_sprints:
+    # Фильтрация данных по текущему спринту
+    sprint_data = data[data['sprint_name'] == sprint_name]
+
+    # Определение диапазона дат спринта
+    sprint_start_date = sprint_data['history_date'].min()
+    sprint_end_date = sprint_data['history_date'].max()
+
+    # Проход по дням спринта
+    current_date = sprint_start_date
+    while current_date <= sprint_end_date:
+        # Фильтрация задач, относящихся к текущему дню и удовлетворяющих условиям
+        tasks_cancelled_on_day = sprint_data[
+            (sprint_data['status'].isin(valid_statuses)) &
+            (sprint_data['resolution'].isin(valid_resolutions)) &
+            (sprint_data['history_date'] <= current_date)
+        ]
+
+        # Суммирование estimation и деление на 3600
+        daily_metric = tasks_cancelled_on_day['estimation'].sum() / 3600
+
+        # Добавление метрики в список
+        daily_metrics.append({
+            'sprint_name': sprint_name,
+            'date': current_date,
+            'second_metric': round(daily_metric, 1)
+        })
+
+        # Переход к следующему дню
+        current_date += pd.Timedelta(days=1)
+
+# Создание DataFrame с ежедневными метриками
+daily_metrics_df = pd.DataFrame(daily_metrics)
+
+
+# Выбор конкретного спринта
+selected_sprint_entity_ids = sprints.iloc[0]['entity_ids']  # Уже является списком
+
+# Фильтрация задач, относящихся к выбранному спринту, со статусом "Создано"
+tasks_in_sprint = data[
+    (data['entity_id'].isin(selected_sprint_entity_ids)) &
+    (data['status'] == 'Создано')
+]
+
+# Суммирование estimation и деление на 3600
+first_metric_sum = tasks_in_sprint['estimation'].sum() / 3600  # Перевод в часы
+
+# Создание отдельного столбца с рассчитанным показателем для каждой строки (если нужен общий результат - только sum)
+data['first_metric'] = 0  # Инициализация
+data.loc[
+    data['entity_id'].isin(selected_sprint_entity_ids),
+    'first_metric'
+] = first_metric_sum
+
+
+# Группируем задачи по sprintName и рассчитываем метрику "К выполнению"
+def calculate_metric_per_sprint(df, sprint_name):
+    # Фильтрация задач, относящихся к указанному спринту и имеющих статус "Создано"
+    tasks_in_sprint = df[
+        (df['sprint_name'] == sprint_name) &
+        (df['status'] == 'Создано')
+    ]
+    # Суммирование estimation для задач спринта и деление на 3600
+    metric = tasks_in_sprint['estimation'].sum() / 3600
+    return metric
+
+# Применяем расчёт метрики по каждому уникальному спринту
+sprint_metrics = {}
+for sprint_name in data['sprint_name'].unique():
+    sprint_metrics[sprint_name] = calculate_metric_per_sprint(data, sprint_name)
+
+# Добавляем результат в таблицу
+daily_metrics_df['first_metrick'] = data['sprint_name'].map(sprint_metrics)
+
+
+
+# Преобразуем столбец sprint_start_date и sprint_end_date в datetime
 sprints['sprint_start_date'] = pd.to_datetime(sprints['sprint_start_date'], errors='coerce')
 sprints['sprint_end_date'] = pd.to_datetime(sprints['sprint_end_date'], errors='coerce')
 
-# Convert entity_ids to list
-def parse_entity_ids(x):
-    try:
-        return ast.literal_eval(x)
-    except:
-        return []
+# Функция для разделения задач по времени относительно дня спринта
+def split_tasks_by_day(df, current_date):
+    # Преобразуем history_date в datetime
+    df['history_date'] = pd.to_datetime(df['history_date'], errors='coerce')
+    
+    # Задачи до текущей даты
+    early_tasks_df = df[
+        (df['history_date'].isna() | (df['history_date'] <= current_date)) &
+        (df['type'] != 'Дефект')  # Исключаем дефекты
+    ]
+    
+    # Задачи, добавленные до текущей даты
+    added_tasks_df = df[
+        (df['history_date'] > current_date) &
+        (df['type'] != 'Дефект')  # Исключаем дефекты
+    ]
+    
+    return early_tasks_df, added_tasks_df
 
-sprints['entity_ids'] = sprints['entity_ids'].apply(parse_entity_ids)
+# Функция для подсчета backlog_change для определённого дня спринта
+def calculate_daily_backlog_change(data, sprint, current_date):
+    # Разделяем задачи на те, что существовали до текущей даты, и те, что добавились
+    early_tasks_df, added_tasks_df = split_tasks_by_day(data, current_date)
 
-# Convert estimates from seconds to hours
-data['estimation_hours'] = data['estimation'] / 3600
-data['estimation_hours'] = data['estimation_hours'].fillna(0)
+    # Считаем сумму оценок
+    early_sum = early_tasks_df['estimation'].sum() / 3600  # Переводим секунды в часы
+    added_sum = added_tasks_df['estimation'].sum() / 3600  # Переводим секунды в часы
 
-# Prepare status changes from history
-status_changes = history[history['history_property_name'] == 'Статус'].copy()
-
-# Parse history_change to get the new status
-def get_new_status(change_str):
-    try:
-        if pd.isnull(change_str):
-            return None
-        return change_str.split('->')[-1].strip()
-    except:
-        return None
-
-status_changes['new_status'] = status_changes['history_change'].apply(get_new_status)
-
-# Prepare resolution changes from history
-resolution_changes = history[history['history_property_name'] == 'Резолюция'].copy()
-resolution_changes['new_resolution'] = resolution_changes['history_change'].apply(get_new_status)
-
-# Prepare sprint changes from history
-sprint_changes = history[history['history_property_name'] == 'Спринт'].copy()
-sprint_changes['sprint_added'] = sprint_changes['history_change'].apply(lambda x: get_new_status(x))
-
-# Process each sprint
-sprint_results = []
-
-for idx, sprint in sprints.iterrows():
-    sprint_name = sprint['sprint_name']
-    sprint_start = sprint['sprint_start_date']
-    sprint_end = sprint['sprint_end_date']
-    entity_ids = sprint['entity_ids']
-    print(f'Processing sprint: {sprint_name}')
-
-    date_range = pd.date_range(sprint_start, sprint_end)
-
-    sprint_tasks = data[data['entity_id'].isin(entity_ids)].copy()
-
-    # Get status and resolution changes for tasks in the sprint
-    task_status_changes = status_changes[status_changes['entity_id'].isin(sprint_tasks['entity_id'])].copy()
-    task_status_changes.sort_values(['entity_id', 'history_date'], inplace=True)
-    task_resolution_changes = resolution_changes[resolution_changes['entity_id'].isin(sprint_tasks['entity_id'])].copy()
-    task_resolution_changes.sort_values(['entity_id', 'history_date'], inplace=True)
-
-    # Get sprint changes for tasks
-    task_sprint_changes = sprint_changes[sprint_changes['entity_id'].isin(sprint_tasks['entity_id'])].copy()
-    task_sprint_changes.sort_values(['entity_id', 'history_date'], inplace=True)
-
-    task_dates = []
-
-    for task_id in sprint_tasks['entity_id'].unique():
-        task_data = sprint_tasks[sprint_tasks['entity_id'] == task_id].iloc[0]
-
-        # Get full history for the task
-        task_history = task_status_changes[task_status_changes['entity_id'] == task_id]
-        task_res_history = task_resolution_changes[task_resolution_changes['entity_id'] == task_id]
-        task_sprint_history = task_sprint_changes[task_sprint_changes['entity_id'] == task_id]
-
-        # Determine initial status and resolution before the sprint
-        initial_status = task_data['status']
-        initial_resolution = task_data['resolution']
-        in_sprint = True  # Assume the task is in sprint unless history says otherwise
-
-        pre_sprint_status = task_history[task_history['history_date'] < sprint_start]
-        if not pre_sprint_status.empty:
-            initial_status = pre_sprint_status.iloc[-1]['new_status']
-
-        pre_sprint_resolution = task_res_history[task_res_history['history_date'] < sprint_start]
-        if not pre_sprint_resolution.empty:
-            initial_resolution = pre_sprint_resolution.iloc[-1]['new_resolution']
-
-        # Determine if task was added to sprint after the start
-        pre_sprint_sprint = task_sprint_history[task_sprint_history['history_date'] < sprint_start]
-        if not pre_sprint_sprint.empty:
-            last_sprint_change = pre_sprint_sprint.iloc[-1]['sprint_added']
-            if last_sprint_change != sprint_name:
-                in_sprint = False
-        else:
-            # If there is no sprint change history before sprint start, check if task was created before sprint
-            if task_data['create_date'] > sprint_start:
-                in_sprint = False
-
-        # Build a timeline of status, resolution, and sprint membership changes
-        status_timeline = [{'date': sprint_start - pd.Timedelta(days=1), 'status': initial_status, 'resolution': initial_resolution, 'in_sprint': in_sprint}]
-        combined_changes = pd.concat([
-            task_history[['history_date', 'new_status']].rename(columns={'new_status': 'change', 'history_date': 'date'}),
-            task_res_history[['history_date', 'new_resolution']].rename(columns={'new_resolution': 'change', 'history_date': 'date'}),
-            task_sprint_history[['history_date', 'sprint_added']].rename(columns={'sprint_added': 'change', 'history_date': 'date'})
-        ]).sort_values('date')
-
-        current_status = initial_status
-        current_resolution = initial_resolution
-        current_in_sprint = in_sprint
-
-        for _, row in combined_changes.iterrows():
-            change_date = row['date']
-            change = row['change']
-            if change in status_changes['new_status'].values:
-                current_status = change
-            elif change in resolution_changes['new_resolution'].values:
-                current_resolution = change
-            else:
-                # Sprint change
-                if change == sprint_name:
-                    current_in_sprint = True
-                else:
-                    current_in_sprint = False
-            status_timeline.append({'date': change_date, 'status': current_status, 'resolution': current_resolution, 'in_sprint': current_in_sprint})
-
-        # Assign status for each day
-        for current_date in date_range:
-            statuses_up_to_date = [item for item in status_timeline if item['date'] <= current_date]
-            if not statuses_up_to_date:
-                continue
-            status_info = statuses_up_to_date[-1]
-            status = status_info['status']
-            resolution = status_info['resolution']
-            in_sprint = status_info['in_sprint']
-
-            task_dates.append({
-                'date': current_date,
-                'entity_id': task_id,
-                'status': status,
-                'resolution': resolution,
-                'type': task_data['type'],
-                'estimation_hours': task_data['estimation_hours'],
-                'in_sprint': in_sprint
-            })
-
-    # Create DataFrame
-    task_status_per_day = pd.DataFrame(task_dates)
-
-    # Filter tasks that are in sprint on that day
-    task_status_per_day = task_status_per_day[task_status_per_day['in_sprint']]
-
-    # Map status to status_category
-    def map_status_category(status, resolution, task_type):
-        if status == 'Создано':
-            return 'To Do'
-        elif status == 'В работе':
-            return 'In Progress'
-        elif status in ['Закрыто', 'Выполнено']:
-            if resolution in ['Отклонено', 'Отменено инициатором', 'Дубликат'] or (task_type == 'Дефект' and status == 'Отклонен исполнителем'):
-                return 'Removed'
-            else:
-                return 'Done'
-        else:
-            return 'Other'
-
-    task_status_per_day['status_category'] = task_status_per_day.apply(
-        lambda row: map_status_category(row['status'], row['resolution'], row['type']), axis=1
-    )
-
-    # Identify 'Снятые объекты'
-    task_status_per_day['is_snyato'] = task_status_per_day.apply(
-        lambda row: row['status_category'] == 'Removed', axis=1
-    )
-
-    # Calculate daily sums
-    daily_sums = task_status_per_day.groupby(['date', 'status_category'])['estimation_hours'].sum().reset_index()
-    daily_indicators = daily_sums.pivot(index='date', columns='status_category', values='estimation_hours').fillna(0).reset_index()
-
-    # Ensure all required columns are present
-    for col in ['To Do', 'In Progress', 'Done', 'Removed']:
-        if col not in daily_indicators.columns:
-            daily_indicators[col] = 0
-
-    # Calculate "Backlog Change %"
-    sprint_task_ids = sprint_tasks['entity_id'].unique()
-    task_added_dates = {}
-
-    # Process sprint changes
-    task_sprint_changes = sprint_changes[sprint_changes['entity_id'].isin(sprint_task_ids)]
-    task_sprint_changes.sort_values(['entity_id', 'history_date'], inplace=True)
-
-    for task_id in sprint_task_ids:
-        task_changes = task_sprint_changes[task_sprint_changes['entity_id'] == task_id]
-        task_changes_in_sprint = task_changes[task_changes['sprint_added'] == sprint_name]
-        if not task_changes_in_sprint.empty:
-            added_date = task_changes_in_sprint.iloc[0]['history_date']
-        else:
-            # If task was in sprint from the beginning
-            added_date = sprint_start - pd.Timedelta(days=1)
-        task_added_dates[task_id] = added_date
-
-    cutoff_date = sprint_start + timedelta(days=2)
-    early_tasks = [task_id for task_id, date in task_added_dates.items() if date <= cutoff_date]
-    late_tasks = [task_id for task_id, date in task_added_dates.items() if date > cutoff_date]
-
-    # Exclude defects
-    early_tasks_df = sprint_tasks[(sprint_tasks['entity_id'].isin(early_tasks)) & (sprint_tasks['type'] != 'Дефект')]
-    late_tasks_df = sprint_tasks[(sprint_tasks['entity_id'].isin(late_tasks)) & (sprint_tasks['type'] != 'Дефект')]
-
-    early_sum = early_tasks_df['estimation_hours'].sum()
-    late_sum = late_tasks_df['estimation_hours'].sum()
-
+    # Исправление расчета для случаев, когда early_sum == 0
     if early_sum > 0:
-        backlog_change_pct = (late_sum * 100) / early_sum
+        backlog_change_pct = (added_sum * 100) / early_sum
+    elif added_sum > 0:
+        backlog_change_pct = 100.0  # Весь бэклог был добавлен поздно
     else:
-        backlog_change_pct = 0
+        backlog_change_pct = 0.0  # Нет задач в бэклоге
 
-    daily_indicators['Backlog Change %'] = round(backlog_change_pct, 1)
-    daily_indicators['sprint_name'] = sprint_name
+    return round(backlog_change_pct, 1)
 
-    # Calculate "Добавлено (ЧД/шт)" and "Исключено (ЧД/шт)"
-    # Initialize lists to hold daily added and removed tasks
-    daily_added = []
-    daily_removed = []
+# Рассчитываем backlog_change для каждого дня в каждом спринте
+daily_backlog_metrics = []
+for _, sprint in sprints.iterrows():
+    sprint_name = sprint['sprint_name']
+    sprint_start_date = sprint['sprint_start_date']
+    sprint_end_date = sprint['sprint_end_date']
+    
+    # Перебор дней спринта
+    current_date = sprint_start_date
+    while current_date <= sprint_end_date:
+        backlog_change_pct = calculate_daily_backlog_change(data, sprint, current_date)
+        daily_backlog_metrics.append({
+            'sprint_name': sprint_name,
+            'day': current_date,
+            'backlog_change_percentage': backlog_change_pct
+        })
+        current_date += pd.Timedelta(days=1)  # Переходим к следующему дню
 
-    for current_date in date_range:
-        # Get tasks added or removed on current_date
-        added_tasks = []
-        removed_tasks = []
-
-        for task_id in sprint_task_ids:
-            task_changes = task_sprint_changes[task_sprint_changes['entity_id'] == task_id]
-            changes_on_date = task_changes[task_changes['history_date'].dt.date == current_date.date()]
-            if not changes_on_date.empty:
-                for _, row in changes_on_date.iterrows():
-                    change = row['sprint_added']
-                    if change == sprint_name:
-                        added_tasks.append(task_id)
-                    else:
-                        removed_tasks.append(task_id)
-
-        # Exclude 'Снятые' tasks
-        snyato_tasks = task_status_per_day[(task_status_per_day['date'] == current_date) & (task_status_per_day['is_snyato'])]['entity_id'].unique()
-        added_tasks = [tid for tid in added_tasks if tid not in snyato_tasks]
-        removed_tasks = [tid for tid in removed_tasks if tid not in snyato_tasks]
-
-        # Handle multiple additions/removals in a single day
-        added_tasks = list(set(added_tasks))
-        removed_tasks = list(set(removed_tasks))
-
-        # Sum estimation hours and counts
-        added_estimation = sprint_tasks[sprint_tasks['entity_id'].isin(added_tasks)]['estimation_hours'].sum()
-        added_count = len(added_tasks)
-        removed_estimation = sprint_tasks[sprint_tasks['entity_id'].isin(removed_tasks)]['estimation_hours'].sum()
-        removed_count = len(removed_tasks)
-
-        daily_added.append({'date': current_date, 'Added_Hours': added_estimation, 'Added_Count': added_count})
-        daily_removed.append({'date': current_date, 'Removed_Hours': removed_estimation, 'Removed_Count': removed_count})
-
-    # Convert to DataFrames
-    daily_added_df = pd.DataFrame(daily_added)
-    daily_removed_df = pd.DataFrame(daily_removed)
-
-    # Merge with daily_indicators
-    daily_indicators = daily_indicators.merge(daily_added_df, on='date', how='left')
-    daily_indicators = daily_indicators.merge(daily_removed_df, on='date', how='left')
-
-    # Fill NaN values with zeros
-    daily_indicators[['Added_Hours', 'Added_Count', 'Removed_Hours', 'Removed_Count']] = daily_indicators[['Added_Hours', 'Added_Count', 'Removed_Hours', 'Removed_Count']].fillna(0)
-
-    # Append results
-    sprint_results.append(daily_indicators)
-
-# Combine results for all sprints
-final_results = pd.concat(sprint_results, ignore_index=True)
+# Создаем итоговый DataFrame с ежедневными метриками
+daily_backlog_metrics_df = pd.DataFrame(daily_backlog_metrics)
 
 
+merged_df = pd.merge(
+    daily_backlog_metrics_df,
+    daily_metrics_df,
+    on="sprint_name",        # Замените "date" на ваш общий столбец
+    how="right"       # Тип соединения: 'inner', 'left', 'right', 'outer'
+)
 
-output_path = 'D:/final_results.csv'
-final_results.to_csv(output_path, index=False, encoding='utf-8')
+# Отобразим результат
+print(merged_df.head(5))
+
+#first metric- к выполнению 
+#second_metric- снято
+
+
+merged_df.rename (columns= {'first_metrick': "К выполнению", 'second_metric':"Снято"}, inplace = True)
+
+daily_backlog_metrics_df['day'] = pd.to_datetime(daily_backlog_metrics_df['day']).dt.date
+
+# Удаление времени из столбца "date" в daily_metrics_df
+daily_metrics_df['date'] = pd.to_datetime(daily_metrics_df['date']).dt.date
+
+# Переименование столбца "date" в daily_metrics_df для слияния
+daily_metrics_df.rename(columns={'date': 'day'}, inplace=True)
+
+# Мерджинг двух датафреймов по "sprint_name" и "day"
+merged_df = pd.merge(
+    daily_backlog_metrics_df,
+    daily_metrics_df,
+    on=['sprint_name', 'day'],
+    how='inner'
+)
+
+merged_df.rename(columns= {'first_metrick':"К выполнению", 'second_metric':"Снято", 'backlog_change_percentage': "Бэклог изменен с начала спринта на"}, inplace= True)
 
 
 
-# Print results
-print(final_results)
+def evaluate_sprint_success(df, sprint_name):
+    """
+    Оценивает успешность спринта по заданным критериям.
+
+    :param df: DataFrame с данными о спринтах
+    :param sprint_name: Название спринта для анализа
+    :return: "Успешный" или "Неуспешный" и описание нарушенных критериев
+    """
+    # Фильтрация данных по названию спринта
+    sprint_data = df[df['sprint_name'] == sprint_name].copy()
+
+    # Проверка на пустой спринт
+    if sprint_data.empty:
+        return "Неуспешный", f"Спринт с названием '{sprint_name}' отсутствует в данных"
+
+    # Критерии успешности
+    violations = []
+
+
+    # 2. Проверка параметра "К выполнению" (не более 20% от общего объема)
+    sprint_data['К выполнению доля'] = sprint_data['К выполнению'] / (
+        sprint_data[['К выполнению', 'Снято']].sum(axis=1)
+    )
+    if (sprint_data['К выполнению доля'] > 0.2).any():
+        violations.append("Параметр 'К выполнению' превышает 20% от общего объема")
+
+    # 3. Проверка параметра "Снято" (не более 10% от общего объема)
+    sprint_data['Снято доля'] = sprint_data['Снято'] / (
+        sprint_data[['К выполнению', 'Снято']].sum(axis=1)
+    )
+    if (sprint_data['Снято доля'] > 0.1).any():
+        violations.append("Параметр 'Снято' превышает 10% от общего объема")
+
+    # 4. Проверка изменения бэклога (не более 20%)
+    if (sprint_data['Бэклог изменен с начала спринта на'] > 20).any():
+        violations.append("Бэклог изменен более чем на 20% после начала спринта")
+
+    # Результат
+    if violations:
+        return "Неуспешный", violations
+    else:
+        return "Успешный", []
+
+
+sprint_status = {}
+
+for sprint_name in merged_df['sprint_name'].unique():
+    status, issues = evaluate_sprint_success(merged_df, sprint_name)
+    sprint_status[sprint_name] = {
+        "Статус": status,
+        "Нарушения": issues
+    }
+
+# Вывод результата
+for sprint, result in sprint_status.items():
+    print(f"Спринт: {sprint}")
+    print(f"Статус: {result['Статус']}")
+    if result['Нарушения']:
+        print(f"Нарушения: {', '.join(result['Нарушения'])}")
+    print("-" * 50)
