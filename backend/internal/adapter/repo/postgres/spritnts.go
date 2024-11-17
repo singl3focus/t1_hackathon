@@ -2,6 +2,7 @@ package postgres
 
 import (
     "fmt"
+    "database/sql"
 
     "github.com/lib/pq"
 
@@ -53,4 +54,33 @@ func (r *Repository) UpdateSprintStatus(sprintId int, newStatus string) (error) 
     }
 
     return nil
+}
+
+/*_______________________________________________________________________________*/
+
+func (r *Repository) AddSprintHealth(sprintId int, isHealth bool) error {
+    query := `INSERT INTO sprint_health (sprint_id, is_health) VALUES ($1, $2)`
+
+    _, err := r.db.Exec(query, sprintId, isHealth)
+    if err != nil {
+        return fmt.Errorf("error inserting sprint health: %v", err)
+    }
+
+    return nil
+}
+
+
+func (r *Repository) CheckSprintHealth(sprintId int) (bool, bool, error) {
+    query := `SELECT is_health FROM sprint_health WHERE sprint_id = $1 LIMIT 1`
+
+    var isHealth bool
+    err := r.db.QueryRow(query, sprintId).Scan(&isHealth)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return false, false, nil
+        }
+        return false, false, fmt.Errorf("error querying sprint health: %v", err)
+    }
+
+    return isHealth, true, nil
 }

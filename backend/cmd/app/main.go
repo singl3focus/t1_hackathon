@@ -37,12 +37,16 @@ func main() {
 			cfg.Database.SSLMode,
 			repoLogger,
 		)
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	service := s.NewService(repo)
+	addrs := map[string]string{
+		"analytics": cfg.External.AnalyticsService,
+		"ml": cfg.External.MlService,
+	}
+
+	service := s.NewService(repo, addrs)
 	handler := h.NewHandler(service, handlerLogger)
 	server := h.NewServer(cfg.Server.Port, handler.Router())
 

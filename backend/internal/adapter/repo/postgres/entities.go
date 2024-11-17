@@ -1,27 +1,61 @@
 package postgres
 
 import (
-	"fmt"
-	"time"
-    "strings"
-    "strconv"
 	"database/sql"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/lib/pq"
 
 	"github.com/singl3focus/t1_hackathon/backend/internal/models"
 )    
 
+func (r *Repository) AddTasks(tasks []models.Task) error {
+    tx, err := r.db.Beginx()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+
+    query := `
+        INSERT INTO data_entities (
+            entity_id, area, type, status, state, priority, ticket_number, name, create_date, created_by, 
+            update_date, updated_by, parent_ticket_id, assignee, owner, due_date, rank, estimation, spent, resolution)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`
+
+    for _, task := range tasks {
+        _, err := tx.Exec(query, task.EntityID, task.Area, task.Type,
+            task.Status, task.State, task.Priority, task.TicketNumber,
+            task.Name, task.CreateDate, task.CreatedBy, task.UpdateDate, task.UpdatedBy, 
+            task.ParentTicketID, task.Assignee, task.Owner, task.DueDate,
+            task.Rank, task.Estimation, task.Spent, task.Resolution)
+        if err != nil {
+            tx.Rollback()
+            
+            return fmt.Errorf("error inserting data_entity: %v", err)
+        }
+    }
+
+    if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+    return nil
+}
+
 func (r *Repository) AddTask(task models.Task) error {
     query := `
         INSERT INTO data_entities (
             entity_id, area, type, status, state, priority, ticket_number, name, create_date, created_by, 
-            update_date, updated_by, assignee, owner, rank, estimation, spent)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`
+            update_date, updated_by, parent_ticket_id, assignee, owner, due_date, rank, estimation, spent, resolution)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`
 
-    _, err := r.db.Exec(query, task.EntityID, task.Area, task.Type, task.Status, task.State, task.Priority, 
-        task.TicketNumber, task.Name, task.CreateDate, task.CreatedBy, task.UpdateDate, task.UpdatedBy, 
-        task.Assignee, task.Owner, task.Rank, task.Estimation, task.Spent)
+    _, err := r.db.Exec(query, task.EntityID, task.Area, task.Type,
+        task.Status, task.State, task.Priority, task.TicketNumber,
+        task.Name, task.CreateDate, task.CreatedBy, task.UpdateDate, task.UpdatedBy, 
+        task.ParentTicketID, task.Assignee, task.Owner, task.DueDate,
+        task.Rank, task.Estimation, task.Spent, task.Resolution)
     if err != nil {
         return fmt.Errorf("error inserting data_entity: %v", err)
     }
@@ -116,8 +150,6 @@ func (r *Repository) parseEntityIDs(s string) []int {
 
     return ids
 }
-
-
 
 func (r *Repository) GetTaskByTicketNumber(ticketNumber string) (models.Task, error) {
     query := `SELECT entity_id, area, type, status, state, priority, ticket_number, name, create_date, created_by, update_date, 

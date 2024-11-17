@@ -16,8 +16,12 @@ func (h *Handler) Router() http.Handler {
 	public.HandleFunc("/sprint/add", h.AddSprint).Methods(http.MethodPost)
 	public.HandleFunc("/sprint/update-status", h.UpdateSprintStatus).Methods(http.MethodPost)
 	public.HandleFunc("/sprint/all", h.GetAllSprints).Methods(http.MethodGet)
-
 	public.HandleFunc("/sprint/task/all", h.GetAllSprintTasks).Methods(http.MethodGet)
+
+	public.HandleFunc("/sprint/check-health", h.CheckSprintHealth).Methods(http.MethodGet)
+
+	public.HandleFunc("/tasks/add", h.AddTasks).Methods(http.MethodPost)
+	public.HandleFunc("/tasks/changes/add", h.AddTasksChanges).Methods(http.MethodPost)
 
 	public.HandleFunc("/task/add", h.AddTask).Methods(http.MethodPost)
 	public.HandleFunc("/task/update-status", h.UpdateTaskStatus).Methods(http.MethodPost)

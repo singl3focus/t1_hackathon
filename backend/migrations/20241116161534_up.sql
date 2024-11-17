@@ -10,6 +10,11 @@ CREATE TABLE data_sprints (
     entity_ids INTEGER[] NOT NULL  -- Массив идентификаторов задач, входящих в спринт
 );
 
+CREATE TABLE sprint_health (
+    sprint_id INT UNIQUE NOT NULL,
+    is_health BOOLEAN NOT NULL
+);
+
 -- Создание таблицы data_entities (информация о задачах)
 CREATE TABLE data_entities ( 
     entity_id INT PRIMARY KEY,  -- Уникальный идентификатор задачи
@@ -40,7 +45,7 @@ CREATE TABLE data_history (
     history_property_name VARCHAR(255) NOT NULL,  -- Параметр, который изменился
     history_date TIMESTAMP NOT NULL,  -- Дата изменения
     history_version FLOAT NOT NULL,  -- Версия изменения
-    history_change_type VARCHAR(50) NOT NULL,  -- Тип изменения (например, FIELD_CHANGED)
+    history_change_type VARCHAR(100) NOT NULL,  -- Тип изменения (например, FIELD_CHANGED)
     history_change TEXT NOT NULL,  -- Конкретное изменение
     PRIMARY KEY (entity_id, history_date, history_version),  -- Уникальный ключ для каждой версии изменения
     FOREIGN KEY (entity_id) REFERENCES data_entities(entity_id) ON DELETE CASCADE

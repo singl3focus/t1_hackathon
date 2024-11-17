@@ -23,6 +23,11 @@ type Config struct {
 		Format      string `yaml:"format"`
 		SavingDays  int    `yaml:"saving_days"`
 	} `yaml:"logger"`
+
+	External struct {
+		MlService        string `yaml:"ml_service"`
+		AnalyticsService string `yaml:"analytics_service"`
+	} `yaml:"external"`
 }
 
 func GetConfig() *Config {

@@ -81,6 +81,38 @@ func (h *Handler) UpdateSprintStatus(w http.ResponseWriter, r *http.Request) {
 	h.NewTextResponse(w, "Sprint status was successfully updated")
 }
 
+type CheckSprintHealthResponse struct {
+	IsHealth bool `json:"is_health"`
+}
+
+func (h *Handler) CheckSprintHealth(w http.ResponseWriter, r *http.Request) {
+	sprintIDstr := r.URL.Query().Get("sprint_id")
+	if sprintIDstr == "" {
+		h.NewErrorResponse(w, http.StatusInternalServerError, "'sprint_id' is empty", "")
+		return
+	}
+	sprintID, err := strconv.Atoi(sprintIDstr)
+	if err != nil {
+		h.NewErrorResponse(w, http.StatusInternalServerError, "'sprint_id' is not integer", err.Error())
+		return
+	}
+
+	is_health, err := h.service.CheckSprintHealth(sprintID)
+	if err != nil {
+		h.NewErrorResponse(w, http.StatusInternalServerError, "Server error", err.Error())
+		return
+	}
+
+	answer := CheckSprintHealthResponse{IsHealth: is_health}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(answer); err != nil {
+		h.NewErrorResponse(w, http.StatusInternalServerError, "Server error", err.Error())
+	}
+}
+
+
 /*____________________________[TASK]____________________________*/
 
 func (h *Handler) AddTask(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +131,24 @@ func (h *Handler) AddTask(w http.ResponseWriter, r *http.Request) {
 
 	h.NewTextResponse(w, "Task was successfully added")
 }
+
+func (h *Handler) AddTasks(w http.ResponseWriter, r *http.Request) {
+	var tasks []models.Task
+
+	if err := json.NewDecoder(r.Body).Decode(&tasks); err != nil {
+		h.NewErrorResponse(w, http.StatusBadRequest, "Invalid request", err.Error())
+		return
+	}
+
+	err := h.service.AddTasks(tasks)
+	if err != nil {
+		h.NewErrorResponse(w, http.StatusInternalServerError, "Server error", err.Error())
+		return
+	}
+
+	h.NewTextResponse(w, "Tasks were successfully added")
+}
+
 
 type UpdateTaskStatusRequest struct {
 	EntityId  int    `json:"entity_id"`
@@ -187,4 +237,24 @@ func (h *Handler) GetTaskByTicketNumber(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewEncoder(w).Encode(answer); err != nil {
 		h.NewErrorResponse(w, http.StatusInternalServerError, "Server error", err.Error())
 	}
+}
+
+
+/*____________________________[TASK HISTORY]____________________________*/
+
+func (h *Handler) AddTasksChanges(w http.ResponseWriter, r *http.Request) {
+	var tasksChanges []models.TaskChange
+
+	if err := json.NewDecoder(r.Body).Decode(&tasksChanges); err != nil {
+		h.NewErrorResponse(w, http.StatusBadRequest, "Invalid request", err.Error())
+		return
+	}
+
+	err := h.service.AddTasksChanges(tasksChanges)
+	if err != nil {
+		h.NewErrorResponse(w, http.StatusInternalServerError, "Server error", err.Error())
+		return
+	}
+
+	h.NewTextResponse(w, "Tasks changes were successfully added")
 }

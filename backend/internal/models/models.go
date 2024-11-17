@@ -36,7 +36,7 @@ type Task struct {
 	Resolution     *string    `json:"resolution"` // может быть NULL
 }
 
-type TaskHistory struct {
+type TaskChange struct {
 	EntityID            int       `json:"entity_id"`
 	HistoryPropertyName string    `json:"history_property_name"`
 	HistoryDate         time.Time `json:"history_date"`
