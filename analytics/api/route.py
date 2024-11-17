@@ -1,18 +1,14 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import pandas as pd
-import numpy as np
-import ast
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional, Any
 
-from service import AnalyticService
+from sprint_analyzer import SprintAnalyzer  # Импорт класса SprintAnalyzer из вашего файла
 
 app = FastAPI()
 
-# Подключение маршрутов
-# app.include_router(predict.router)
-
+# Модели данных для запроса
 class DataItem(BaseModel):
     entity_id: Any
     area: Optional[str]
@@ -61,15 +57,48 @@ class ProcessDataRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Clustering Service"}
+    """
+    Приветственное сообщение
+    """
+    return {"message": "Welcome to the Sprint Analysis Service"}
 
-@app.get("/process_data")
-def read_root(request: ProcessDataRequest):
-    data = pd.DataFrame([item.dict() for item in request.data])
-    history = pd.DataFrame([item.dict() for item in request.history])
-    sprints = pd.DataFrame([item.dict() for item in request.sprints])
+@app.post("/process_data")
+def process_data(request: ProcessDataRequest):
+    """
+    Обрабатывает данные о задачах, истории и спринтах.
+    """
+    try:
+        # Преобразуем входные данные в DataFrame
+        data = pd.DataFrame([item.dict() for item in request.data])
+        history = pd.DataFrame([item.dict() for item in request.history])
+        sprints = pd.DataFrame([item.dict() for item in request.sprints])
 
-    analytics = AnalyticService(data=data, history=history, sprints=sprints)
-        
+        # Инициализируем анализатор спринтов
+        analyzer = SprintAnalyzer(data_file=None, history_file=None, sprints_file=None)
 
-    return {"message": "Welcome to the Clustering Service"}
+        # Подменяем данные в объекте класса
+        analyzer.data = data
+        analyzer.history = history
+        analyzer.sprints = sprints
+
+        # Выполняем предобработку
+        analyzer.preprocess_data()
+
+        # Рассчитываем метрики
+        analyzer.calculate_daily_metrics()
+        analyzer.calculate_backlog_metrics()
+
+        # Объединяем данные
+        analyzer.merge_metrics()
+
+        # Оцениваем успешность спринтов
+        sprint_status = analyzer.evaluate_sprints()
+
+        return {
+            "message": "Data processed successfully",
+            "sprint_status": sprint_status
+        }
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
