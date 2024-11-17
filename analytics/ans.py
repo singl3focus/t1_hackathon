@@ -4,33 +4,17 @@ import json
 
 
 class SprintAnalysis:
-    def __init__(self, json_file_path: json):
-        
-        self.data, self.history, self.sprints = self.json_to_dataframes()
+    def __init__(self, data: pd.DataFrame, history: pd.DataFrame, sprints: pd.DataFrame):
+
+        self.data: pd.DataFrame = data
+        self.history: pd.DataFrame = history
+        self.sprints: pd.DataFrame = sprints
 
         # Data Preparation
         self._prepare_history()
         self._expand_sprints()
         self._merge_data()
         self._convert_dates()
-
-    def json_to_dataframes(json_file_path):
-        """
-        Преобразует JSON файл в три датафрейма: data, history и sprints.
-        
-        :param json_file_path: Путь к JSON файлу.
-        :return: Кортеж из трех датафреймов (data, history, sprints).
-        """
-        # Чтение JSON файла
-        with open(json_file_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-        
-        # Преобразование в датафреймы
-        df_data = pd.DataFrame(data.get('data', []))
-        df_history = pd.DataFrame(data.get('history', []))
-        df_sprints = pd.DataFrame(data.get('sprints', []))
-        
-        return df_data, df_history, df_sprints
 
     def _prepare_history(self):
         # Move "entity_id" to the first column
@@ -63,6 +47,86 @@ class SprintAnalysis:
         self.sprints['sprint_start_date'] = pd.to_datetime(self.sprints['sprint_start_date'], errors='coerce')
         self.sprints['sprint_end_date'] = pd.to_datetime(self.sprints['sprint_end_date'], errors='coerce')
         self.final_table['history_date'] = pd.to_datetime(self.final_table['history_date'], errors='coerce')
+
+    
+    def calculate_first_metric_for_all_sprints(self):
+        """
+        Вычисляет первую метрику (К выполнению) для каждого спринта.
+        
+        :return: DataFrame с добавленной метрикой для каждого спринта.
+        """
+        self.data['first_metric'] = 0  # Инициализация метрики
+        
+        for _, sprint in self.sprints.iterrows():
+            selected_sprint_entity_ids = sprint['entity_ids']
+            if not isinstance(selected_sprint_entity_ids, list):
+                selected_sprint_entity_ids = list(map(float, selected_sprint_entity_ids))
+            
+            tasks_in_sprint = self.data[
+                (self.data['entity_id'].isin(selected_sprint_entity_ids)) &
+                (self.data['status'] == 'Создано')
+            ]
+
+            # Суммирование estimation и деление на 3600
+            first_metric_sum = tasks_in_sprint['estimation'].sum() / 3600
+
+            # Обновление метрики в основном DataFrame
+            self.data.loc[
+                self.data['entity_id'].isin(selected_sprint_entity_ids),
+                'first_metric'
+            ] = first_metric_sum
+
+        return self.data
+
+    def calculate_daily_metrics(self):
+        """
+        Рассчитывает метрику "Снято" для каждого дня каждого спринта.
+        
+        :return: DataFrame с ежедневными метриками для каждого спринта.
+        """
+        # Условия для фильтрации задач
+        valid_statuses = ["Закрыто", "Выполнено"]
+        valid_resolutions = ["Отклонено", "Отменено инициатором", "Дубликат", "Отклонён исполнителем"]
+
+        daily_metrics = []
+
+        # Получение уникальных спринтов
+        unique_sprints = self.data['sprint_name'].unique()
+
+        # Цикл по каждому спринту
+        for sprint_name in unique_sprints:
+            # Фильтрация данных по текущему спринту
+            sprint_data = self.data[self.data['sprint_name'] == sprint_name]
+
+            # Определение диапазона дат спринта
+            sprint_start_date = sprint_data['history_date'].min()
+            sprint_end_date = sprint_data['history_date'].max()
+
+            # Проход по дням спринта
+            current_date = sprint_start_date
+            while current_date <= sprint_end_date:
+                # Фильтрация задач, относящихся к текущему дню и удовлетворяющих условиям
+                tasks_cancelled_on_day = sprint_data[
+                    (sprint_data['status'].isin(valid_statuses)) &
+                    (sprint_data['resolution'].isin(valid_resolutions)) &
+                    (sprint_data['history_date'] <= current_date)
+                ]
+
+                # Суммирование estimation и деление на 3600
+                daily_metric = tasks_cancelled_on_day['estimation'].sum() / 3600
+
+                # Добавление метрики в список
+                daily_metrics.append({
+                    'sprint_name': sprint_name,
+                    'date': current_date,
+                    'second_metric': round(daily_metric, 1)
+                })
+
+                # Переход к следующему дню
+                current_date += pd.Timedelta(days=1)
+        self.data['second_metrick'] = daily_metrics
+
+        return self.data
 
     def calculate_daily_backlog(self):
         daily_backlog_metrics = []
@@ -103,12 +167,3 @@ class SprintAnalysis:
             return 100.0
         return 0.0
 
-
-# Example usage
-analysis = SprintAnalysis(
-    data_path='data_for_spb_hakaton_entities1-Table 1.csv',
-    history_path='history-Table 1.csv',
-    sprints_path='sprints-Table 1.csv'
-)
-
-daily_backlog_df = analysis.calculate_daily_backlog()

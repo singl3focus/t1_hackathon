@@ -70,5 +70,6 @@ def read_root(request: ProcessDataRequest):
     sprints = pd.DataFrame([item.dict() for item in request.sprints])
 
     analytics = AnalyticService(data=data, history=history, sprints=sprints)
+        
 
     return {"message": "Welcome to the Clustering Service"}
