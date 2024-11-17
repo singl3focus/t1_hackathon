@@ -1,61 +1,111 @@
 import pandas as pd
-import numpy as np
-from sklearn.preprocessing import LabelEncoder, StandardScaler, RobustScaler
+from sklearn.preprocessing import LabelEncoder
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-from typing import Tuple
-import pickle
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.preprocessing import StandardScaler
+import json
+import pandas as pd
 
 
-class ClusterModel:
-    def __init__(self, csv_path: str = 'models/data/final_table.csv', corr_threshold: float = 0.9, model_path: str = 'model_pipeline.pkl'):
-        """
-        Инициализирует класс, загружает данные из CSV и производит предобучение.
-        """
-        self.corr_threshold: float = corr_threshold
-        self.model_path: str = model_path
-        self.df: pd.DataFrame = pd.DataFrame()
-        self.aggregated_features: pd.DataFrame = pd.DataFrame()
-        self.model_pipeline: Pipeline = None
-        
-        # Загрузка данных из CSV
-        self.load_data_from_csv(csv_path)
-        self.df = self.preprocess(self.df)
-        self.train_model(self.scale_features(self.aggregated_features))
-        print("Model initialized and trained using data from CSV.")
 
-    def load_data_from_csv(self, csv_path: str) -> None:
-        """
-        Загружает данные из CSV файла.
-        """
-        try:
-            self.df = pd.read_csv(csv_path)
-            if self.df.empty:
-                raise ValueError("CSV file is empty.")
-            print(f"Data successfully loaded from {csv_path}.")
-        except FileNotFoundError:
-            raise ValueError(f"CSV file not found at {csv_path}.")
-    
-    # Остальные методы класса без изменений...
+class Model:
+    def __init__(self, data: pd.DataFrame, history: pd.DataFrame, sprints: pd.DataFrame, target: pd.DataFrame, 
+                 threshold=0.1, n_clusters=3, random_state=42):
+        self.data = data
+        self.history = history
+        self.sprints = sprints
+        self.target = target
 
-    def load_model(self) -> None:
-        """
-        Загружает обученную модель из файла.
-        """
-        try:
-            with open(self.model_path, 'rb') as f:
-                self.model_pipeline = pickle.load(f)
-            print(f"Model loaded successfully from {self.model_path}.")
-        except FileNotFoundError:
-            raise ValueError(f"Model file not found at {self.model_path}. Train the model first.")
+        self.preprocess()
+        self.threshold = threshold
+        self.n_clusters = n_clusters
+        self.random_state = random_state
+        self.scaler = StandardScaler()
+        self.kmeans_successful = MiniBatchKMeans(n_clusters=self.n_clusters, random_state=self.random_state)
+        self.kmeans_unsuccessful = MiniBatchKMeans(n_clusters=self.n_clusters, random_state=self.random_state)
 
-    def save_model(self) -> None:
-        if self.model_pipeline is None:
-            raise ValueError("Model is not trained yet. Train the model before saving.")
-        with open(self.model_path, 'wb') as f:
-            pickle.dump(self.model_pipeline, f)
-        print(f"Model saved to {self.model_path}.")
+    def select_significant_metrics(self, metric_series):
+        """
+        Выбирает метрики, которые значительно отличаются от остальных.
+        :param metric_series: Series с диапазонами метрик.
+        :return: Список метрик.
+        """
+        if metric_series.empty:
+            return []
+
+        sorted_metrics = metric_series.sort_values(ascending=False)
+        max_value = sorted_metrics.iloc[0]
+        significant_metrics = sorted_metrics[sorted_metrics >= max_value * (1 - self.threshold)]
+        return significant_metrics.index.tolist()
+
+    def cluster_data(self, successful_data, unsuccessful_data):
+        """
+        Проводит кластеризацию успешных и неуспешных данных.
+        :param successful_data: DataFrame с успешными спринтами.
+        :param unsuccessful_data: DataFrame с неуспешными спринтами.
+        :return: Два DataFrame с добавленными кластерами.
+        """
+        # Масштабирование данных
+        features_successful = successful_data.drop(columns=["sprint_id", "success"])
+        features_unsuccessful = unsuccessful_data.drop(columns=["sprint_id", "success"])
+        scaled_successful = self.scaler.fit_transform(features_successful)
+        scaled_unsuccessful = self.scaler.fit_transform(features_unsuccessful)
+
+        # Кластеризация
+        successful_clusters = self.kmeans_successful.fit_predict(scaled_successful)
+        unsuccessful_clusters = self.kmeans_unsuccessful.fit_predict(scaled_unsuccessful)
+
+        # Добавление кластеров в исходные данные
+        successful_data = successful_data.copy()
+        unsuccessful_data = unsuccessful_data.copy()
+        successful_data["cluster"] = successful_clusters
+        unsuccessful_data["cluster"] = unsuccessful_clusters
+
+        return successful_data, unsuccessful_data
+
+    def analyze_clusters(self, successful_data, unsuccessful_data):
+        """
+        Проводит анализ метрик кластеров для успешных и неуспешных данных.
+        :param successful_data: DataFrame с кластерами успешных спринтов.
+        :param unsuccessful_data: DataFrame с кластерами неуспешных спринтов.
+        :return: Анализ кластеров и наиболее значимые метрики.
+        """
+        # Расчет средних значений и вариативности для каждого кластера
+        successful_cluster_means = successful_data.groupby("cluster").mean()
+        unsuccessful_cluster_means = unsuccessful_data.groupby("cluster").mean()
+        successful_cluster_variability = successful_data.groupby("cluster").std()
+        unsuccessful_cluster_variability = unsuccessful_data.groupby("cluster").std()
+
+        # Различия между кластерами
+        successful_diff = successful_cluster_means.max() - successful_cluster_means.min()
+        unsuccessful_diff = unsuccessful_cluster_means.max() - unsuccessful_cluster_means.min()
+
+        # Формирование итогового анализа
+        cluster_analysis = {
+            "Successful Cluster Mean Range": successful_diff,
+            "Successful Cluster Variability": successful_cluster_variability.mean(),
+            "Unsuccessful Cluster Mean Range": unsuccessful_diff,
+            "Unsuccessful Cluster Variability": unsuccessful_cluster_variability.mean()
+        }
+
+        # Выбор наиболее выделяющихся метрик
+        successful_top_metrics = self.select_significant_metrics(successful_diff)
+        unsuccessful_top_metrics = self.select_significant_metrics(unsuccessful_diff)
+
+        # Результат анализа
+        highlighted_metrics = {
+            "successful_sprints": successful_top_metrics,
+            "unsuccessful_sprints": unsuccessful_top_metrics
+        }
+
+        return cluster_analysis, highlighted_metrics
 
     def load_data_from_json(self, json_data: dict) -> pd.DataFrame:
         self.df = pd.DataFrame(json_data["data"])
@@ -64,10 +114,19 @@ class ClusterModel:
 
         print("Data loaded successfully from JSON.")
 
-        return self.df        
+        return self.df
 
-    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
-        
+    def save_to_json(self, data, file_name="highlighted_metrics.json"):
+        """
+        Сохраняет данные в JSON-файл.
+        :param data: Словарь с данными для сохранения.
+        :param file_name: Имя файла для сохранения.
+        """
+        with open(file_name, "w") as file:
+            json.dump(data, file)
+
+    def preprocess(self) -> pd.DataFrame:
+    
         """
         Preprocessing + aggregating data
         
@@ -91,6 +150,27 @@ class ClusterModel:
         return: aggregated data
 
         """
+        self.history = self.history.reset_index()  # Сброс индекса
+        columns = self.history.columns.tolist()  # Получаем текущий список колонок
+        columns = columns[1:] + columns[:1]  # Перемещаем первую колонку в конец
+        self.history.columns = columns  # Переупорядочиваем названия колонок
+        if 'index' in self.history.columns:
+            self.history.drop(columns=['index'], inplace=True)
+
+        # Разделение entity_ids в таблице sprints
+        self.sprints['entity_ids'] = self.sprints['entity_ids'].apply(lambda x: x.strip('{}').split(',') if pd.notnull(x) else [])
+        sprints_expanded = self.sprints.explode('entity_ids')
+        sprints_expanded['entity_id'] = sprints_expanded['entity_ids'].astype(float)
+
+        # Соединение data и sprints
+        data_sprints = pd.merge(data, sprints_expanded, on='entity_id', how='left')
+
+        # Соединение с history
+        final_table = pd.merge(data_sprints, self.history, on='entity_id', how='left')
+
+        data = final_table.copy()
+
+        
         data['create_date'] = pd.to_datetime(data['create_date'], errors='coerce')
         data['update_date'] = pd.to_datetime(data['update_date'], errors='coerce')
         data['sprint_start_date'] = pd.to_datetime(data['sprint_start_date'], errors='coerce')
@@ -113,58 +193,6 @@ class ClusterModel:
                                 'completion_rate', 'rejected_rate', 'avg_completion_time',
                                 'defects', 'critical_tasks', 'task_count']
         
+        agg_sprint_metricks['target'] = self.target
         return agg_sprint_metricks
 
-    def _remove_highly_correlated_features(self) -> None:
-        corr_matrix = self.df.corr()
-        col_corr = set()
-        for i in range(len(corr_matrix.columns)):
-            for j in range(i):
-                if corr_matrix.iloc[i, j] >= self.corr_threshold:
-                    colname = corr_matrix.columns[i]
-                    col_corr.add(colname)
-        self.df.drop(columns=list(col_corr), inplace=True)
-
-    def train_model(self, scaled_features: pd.DataFrame) -> pd.DataFrame:
-        if scaled_features.empty:
-            raise ValueError("No features provided for training. Ensure data preprocessing and scaling steps are correct.")
-        if self.model_pipeline is None:
-            n_components = min(scaled_features.shape[1], scaled_features.shape[0], 10)
-            if n_components < 1:
-                raise ValueError("Insufficient data for PCA. Ensure the input has enough samples and features.")
-
-            self.model_pipeline = Pipeline([
-                ('scaler', RobustScaler()),
-                ('kmeans', KMeans(n_clusters=2, random_state=42))
-            ])
-            scaled_features['cluster'] = self.model_pipeline.fit_predict(scaled_features)
-        else:
-            kmeans: KMeans = self.model_pipeline.named_steps['kmeans']
-            kmeans.fit(scaled_features)
-            scaled_features['cluster'] = kmeans.predict(scaled_features)
-        print("Model training complete.")
-        return scaled_features
-
-    def update_model(self, new_data: pd.DataFrame) -> pd.DataFrame:
-        if self.model_pipeline is None:
-            raise ValueError("No trained model found. Train a model before updating.")
-
-        scaled_data = self.scale_features(new_data)
-        kmeans: KMeans = self.model_pipeline.named_steps['kmeans']
-        kmeans.fit(scaled_data)
-        scaled_data['cluster'] = kmeans.predict(scaled_data)
-        print("Model updated with new data.")
-        return scaled_data
-
-    def scale_features(self, data: pd.DataFrame) -> pd.DataFrame:
-        scaler: StandardScaler = self.model_pipeline.named_steps['scaler'] if self.model_pipeline else StandardScaler()
-        scaled_data = scaler.fit_transform(data)
-        return pd.DataFrame(scaled_data, columns=data.columns)
-
-    def run(self) -> pd.DataFrame:
-        self.load_data_from_json()
-        self.preprocess()
-        scaled_features = self.scale_features(self.aggregated_features)
-        result = self.train_model(scaled_features)
-        self.save_model()
-        return result
