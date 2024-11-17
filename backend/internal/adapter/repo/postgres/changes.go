@@ -32,6 +32,36 @@ VALUES ($1, $2, $3, $4, $5, $6)`
     return nil
 }
 
+func (r *Repository) GetTaskChanges(entityID int) ([]models.TaskChange, error) {
+    query := `SELECT * FROM data_history WHERE entity_id = $1`
+
+    rows, err := r.db.Query(query, entityID)
+    if err != nil {
+        return nil, fmt.Errorf("error getting data_history: %v", err)
+    }
+    defer rows.Close()
+
+    changes := make([]models.TaskChange, 0, 1)
+    for rows.Next() {
+        var change models.TaskChange
+
+        err := rows.Scan(&change.EntityID, &change.HistoryPropertyName,
+            &change.HistoryDate, &change.HistoryVersion,
+            &change.HistoryChangeType, &change.HistoryChange)
+        if err != nil {
+            return nil, fmt.Errorf("error scanning task row: %v", err)
+        }
+
+        changes = append(changes, change)
+    }
+
+    if err = rows.Err(); err != nil {
+        return nil, fmt.Errorf("error reading rows: %v", err)
+    }
+
+    return changes, nil
+}
+
 func (r *Repository) GetAllSprintChanges(tasks []models.Task) ([]models.TaskChange, error) {
     tx, err := r.db.Beginx()
 	if err != nil {

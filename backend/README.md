@@ -23,6 +23,11 @@ ____
 }
 ```
 Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
 
 #### ```/sprint/update-status```
 Принимает: 
@@ -33,6 +38,11 @@ ____
 }
 ```
 Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
 
 #### ```/sprint/all```
 Принимает: Пустоту \
@@ -112,6 +122,11 @@ ____
   }
 ```
 Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
 
 #### ```/task/update-status```
 Принимает: 
@@ -122,6 +137,11 @@ ____
 }
 ```
 Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
 
 #### ```/task/update-state```
 Принимает: 
@@ -132,6 +152,11 @@ ____
 }
 ```
 Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
 
 #### ```/task/get-by-ticketnumber```
 Принимает: Параметр **ticket_number** в запросе ***(/task/get-by-ticketnumber?ticket_number=PPAR-7200)*** \
@@ -161,6 +186,69 @@ ____
 }
 ```
 
+#### ```/task/changes/all```
+Принимает: Параметр **entity_id** в запросе ***(/task/changes/all?entity_id=PPAR-4327586)*** 
+```json
+[
+  {
+    "entity_id": 4327586,
+    "history_property_name": "Время решения 3ЛП ФАКТ",
+    "history_date": "2024-09-08T12:17:06.680223Z",
+    "history_version": 1,
+    "history_change_type": "FIELD_CHANGED",
+    "history_change": "<empty> -> 2024-09-10 11:17:06.680223"
+  },
+  {
+    "entity_id": 4327586,
+    "history_property_name": "Время решения (ФАКТ)",
+    "history_date": "2024-09-09T11:11:06.680223Z",
+    "history_version": 1,
+    "history_change_type": "FIELD_CHANGED",
+    "history_change": "<empty> -> 2024-09-10 11:17:06.680223"
+  }
+]   
+```
+Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
+
+#### ```/tasks/add```
+Принимает: 
+```json
+[
+  {
+    "entity_id": 4327586,
+    "area": "Система.ХранениеАртефактов",
+    "type": "Задача",
+    "status": "Закрыто",
+    "state": "Normal",
+    "priority": "Средний",
+    "ticket_number": "PPAR-7202",
+    "name": "X2 Дополнительная настройка обязательности атрибутов шаблона",
+    "create_date": "2024-06-21T17:43:41.11025Z",
+    "created_by": "А. К.",
+    "update_date": "2024-07-13T19:50:31.11025Z",
+    "updated_by": "В. Ю.",
+    "parent_ticket_id": 4318716,
+    "assignee": "В. Ю.",
+    "owner": "А. К.",
+    "rank": "0|qpthrc:",
+    "estimation": null,
+    "spent": null,
+    "resolution": "Новая функциональность"
+  }
+]   
+```
+Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
+
 #### ```/tasks/changes/add```
 Принимает: 
 ```json
@@ -184,6 +272,12 @@ ____
 ]   
 ```
 Отдаёт: 200(400, 500) коды
+```json
+{
+    "message": "Successful"
+}
+```
+
 
 ## Data
 

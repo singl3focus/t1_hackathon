@@ -20,6 +20,31 @@ VALUES ($1, $2, $3, $4, $5)`
     return nil
 }
 
+func (r *Repository) AddSprints(sprints []models.Sprint) error {
+    query := `INSERT INTO data_sprints (sprint_name, sprint_status, sprint_start_date, sprint_end_date, entity_ids)
+VALUES ($1, $2, $3, $4, $5)`
+
+    tx, err := r.db.Begin()
+    if err != nil {
+        return fmt.Errorf("failed to begin transaction: %v", err)
+    }
+
+    for _, sprint := range sprints {
+        _, err := tx.Exec(query, sprint.SprintName, sprint.SprintStatus, sprint.SprintStartDate, sprint.SprintEndDate, pq.Array(sprint.EntityIDs))
+        if err != nil {
+            tx.Rollback()
+            return fmt.Errorf("failed to insert sprint: %v", err)
+        }
+    }
+
+    if err := tx.Commit(); err != nil {
+        return fmt.Errorf("failed to commit transaction: %v", err)
+    }
+
+    return nil
+}
+
+
 func (r *Repository) GetSprint(sprintId int) (models.Sprint, error) {
     query := `SELECT * FROM data_sprints WHERE sprint_id = $1`
     

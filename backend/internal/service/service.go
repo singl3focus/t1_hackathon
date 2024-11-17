@@ -30,6 +30,10 @@ func (s *Service) AddSprint(model models.Sprint) error {
 	return s.repo.AddSprint(model)
 }
 
+func (s *Service) AddSprints(sprints []models.Sprint) error {
+	return s.repo.AddSprints(sprints)
+}
+
 func (s *Service) GetAllSprints() ([]models.Sprint, error) {
 	return s.repo.GetAllSprints()
 }
@@ -64,4 +68,8 @@ func (s *Service) GetTaskByTicketNumber(ticketNumber string) (models.Task, error
 
 func (s *Service) AddTasksChanges(models []models.TaskChange) error {
 	return s.repo.AddTasksChanges(models)
+}
+
+func (s *Service) GetTaskChanges(entityID int) ([]models.TaskChange, error) {
+	return s.repo.GetTaskChanges(entityID)
 }

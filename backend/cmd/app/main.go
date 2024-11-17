@@ -11,6 +11,12 @@ import (
 	"github.com/singl3focus/t1_hackathon/backend/pkg/logging"
 )
 
+// @title T1 Hackaton API
+// @version 1.0
+// @description This is a backend server for T1 hackaton.
+// @termsOfService http://swagger.io/terms/
+// @host localhost
+// @BasePath /
 func main() {
 	// Init config and logger
 	cfg := c.GetConfig()
