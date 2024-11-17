@@ -3,7 +3,7 @@
 -- Создание таблицы data_sprints (информация о спринтах)
 CREATE TABLE data_sprints (
     sprint_id SERIAL PRIMARY KEY NOT NULL,
-    sprint_name VARCHAR(255) NOT NULL,
+    sprint_name VARCHAR(3000) NOT NULL,
     sprint_status VARCHAR(50) NOT NULL,
     sprint_start_date TIMESTAMP NOT NULL,
     sprint_end_date TIMESTAMP NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE sprint_health (
 -- Создание таблицы data_entities (информация о задачах)
 CREATE TABLE data_entities ( 
     entity_id INT PRIMARY KEY,  -- Уникальный идентификатор задачи
-    area VARCHAR(255) NOT NULL,  -- Команда, ответственная за задачу
+    area VARCHAR(3000) NOT NULL,  -- Команда, ответственная за задачу
     type VARCHAR(50) NOT NULL,  -- Тип задачи (например, дефект или история)
     status VARCHAR(50) NOT NULL,  -- Статус задачи
     state VARCHAR(50) NOT NULL,  -- Состояние задачи
@@ -26,14 +26,14 @@ CREATE TABLE data_entities (
     ticket_number VARCHAR(50) NOT NULL,  -- Номер задачи
     name TEXT NOT NULL,  -- Название задачи
     create_date TIMESTAMP NOT NULL,  -- Дата создания задачи
-    created_by VARCHAR(255) NOT NULL,  -- Кто создал задачу
+    created_by VARCHAR(3000) NOT NULL,  -- Кто создал задачу
     update_date TIMESTAMP NOT NULL,  -- Дата последнего обновления задачи
-    updated_by VARCHAR(255) NOT NULL,  -- Кто обновил задачу
+    updated_by VARCHAR(3000) NOT NULL,  -- Кто обновил задачу
     parent_ticket_id INT,  -- Идентификатор родительской задачи (если есть)
-    assignee VARCHAR(255),  -- Кому назначена задача
-    owner VARCHAR(255) NOT NULL,  -- Автор задачи
+    assignee VARCHAR(3000),  -- Кому назначена задача
+    owner VARCHAR(3000) NOT NULL,  -- Автор задачи
     due_date TIMESTAMP,  -- Срок исполнения задачи
-    rank VARCHAR(255) NOT NULL,  -- Рейтинг задачи
+    rank VARCHAR(3000) NOT NULL,  -- Рейтинг задачи
     estimation FLOAT,  -- Оценка времени выполнения задачи (в часах)
     spent FLOAT,  -- Затраченное время на задачу (если есть)
     resolution VARCHAR(50)  -- Резолюция задачи (например, "Готово")
@@ -42,7 +42,7 @@ CREATE TABLE data_entities (
 -- Создание таблицы data_history (история изменений задач)
 CREATE TABLE data_history (
     entity_id INT NOT NULL,  -- Идентификатор задачи, к которой относятся изменения
-    history_property_name VARCHAR(255) NOT NULL,  -- Параметр, который изменился
+    history_property_name VARCHAR(3000) NOT NULL,  -- Параметр, который изменился
     history_date TIMESTAMP NOT NULL,  -- Дата изменения
     history_version FLOAT NOT NULL,  -- Версия изменения
     history_change_type VARCHAR(100) NOT NULL,  -- Тип изменения (например, FIELD_CHANGED)

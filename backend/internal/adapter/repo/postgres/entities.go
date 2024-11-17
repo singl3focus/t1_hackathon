@@ -22,7 +22,8 @@ func (r *Repository) AddTasks(tasks []models.Task) error {
         INSERT INTO data_entities (
             entity_id, area, type, status, state, priority, ticket_number, name, create_date, created_by, 
             update_date, updated_by, parent_ticket_id, assignee, owner, due_date, rank, estimation, spent, resolution)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        ON CONFLICT (entity_id) DO NOTHING`
 
     for _, task := range tasks {
         _, err := tx.Exec(query, task.EntityID, task.Area, task.Type,
