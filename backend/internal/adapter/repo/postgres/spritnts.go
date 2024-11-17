@@ -20,6 +20,21 @@ VALUES ($1, $2, $3, $4, $5)`
     return nil
 }
 
+func (r *Repository) GetSprint(sprintId int) (models.Sprint, error) {
+    query := `SELECT * FROM data_sprints WHERE sprint_id = $1`
+    
+    var sprint models.Sprint
+    err := r.db.Get(&sprint, query, sprintId)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return sprint, fmt.Errorf("no sprint found with id %d", sprintId)
+        }
+        return sprint, fmt.Errorf("error getting sprint with id %d: %v", sprintId, err)
+    }
+
+    return sprint, nil
+}
+
 func (r *Repository) GetAllSprints() ([]models.Sprint, error) {
     query := `SELECT sprint_id,
 sprint_name, sprint_status, sprint_start_date, sprint_end_date FROM data_sprints`

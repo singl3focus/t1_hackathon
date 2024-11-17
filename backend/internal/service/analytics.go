@@ -1,10 +1,12 @@
 package service
 
 import (
-	"fmt"
 	"bytes"
-	"net/http"
 	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/singl3focus/t1_hackathon/backend/internal/models"
 )
 
 const (
@@ -15,44 +17,53 @@ type CheckSprintHealthResponse struct {
 	IsHealth bool `json:"is_health"`
 }
 
-func (s *Service) CheckSprintHealth(sprintId int) (bool, error) {
-	is_health, ok, err := s.repo.CheckSprintHealth(sprintId)
+func (s *Service) CheckSprintHealth(sprintId int) (models.AnalyticsSprint, error) {
+	var result models.AnalyticsSprint
+
+	sprintInfo, err := s.repo.GetSprint(sprintId)
 	if err != nil {
-		return false, err
-	}
-	if ok { // [Dev] Если данные о здоровье спринта есть, то возвращаем их 
-		return is_health, nil
+		return result, err
 	}
 
-	/* IF DATA NOT FOUND */
+	tasksInfo, err := s.repo.GetAllSprintTasks(sprintId)
+	if err != nil {
+		return result, err
+	}
 
-	tasks, err := s.repo.GetAllSprintTasks(sprintId)
-	jsonData, err := json.Marshal(tasks)
-    if err != nil {
-        return false, fmt.Errorf("failed to marshal tasks: %v", err)
-    }
+	chagesInfo, err := s.repo.GetAllSprintChanges(tasksInfo)
+	if err != nil {
+		return result, err
+	}
+
+	data := struct {
+		Sprints  []models.Sprint     `json:"sprints"`
+		Entities []models.Task       `json:"entities"`
+		History  []models.TaskChange `json:"history"`
+	}{
+		Sprints: []models.Sprint{sprintInfo},
+		Entities: tasksInfo,
+		History: chagesInfo,
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return result, fmt.Errorf("failed to marshal tasks: %v", err)
+	}
 
 	addr := s.addrs[AnalyticsKey] + SubpathCheckSprintHealth
 
-	client := &http.Client{} 
-    req, err := http.NewRequest("GET", addr, bytes.NewBuffer(jsonData)) 
-    resp, err := client.Do(req) 
-    if err != nil { 
-        return false, err
-    } 
-    defer resp.Body.Close() 
-    
-	var dto CheckSprintHealthResponse
-	err = json.NewDecoder(resp.Body).Decode(&dto)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", addr, bytes.NewBuffer(jsonData))
+	resp, err := client.Do(req)
 	if err != nil {
-		return false, err
+		return result, err
+	}
+	defer resp.Body.Close()
+
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return result, err
 	}
 
-	err = s.repo.AddSprintHealth(sprintId, dto.IsHealth)
-	if err != nil {
-		s.logger.Error("invalid adding health status of sprint", "(error)", err.Error())
-		// [Dev] Мы получили данные с сервиса, поэтому ошибку лишь логгируем
-	}
-
-	return dto.IsHealth, nil
-} 
+	return result, nil
+}

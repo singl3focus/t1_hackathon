@@ -44,3 +44,4 @@ type TaskChange struct {
 	HistoryChangeType   string    `json:"history_change_type"`
 	HistoryChange       string    `json:"history_change"`
 }
+

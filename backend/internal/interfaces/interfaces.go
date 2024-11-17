@@ -9,7 +9,7 @@ type Service interface {
 	GetAllSprints() ([]models.Sprint, error)
 	UpdateSprintStatus(sprintId int, newStatus string) error
 
-	CheckSprintHealth(sprintId int) (bool, error)
+	CheckSprintHealth(sprintId int) (models.AnalyticsSprint, error)
 
 	AddTask(task models.Task) error
 	AddTasks(task []models.Task) error
@@ -17,12 +17,13 @@ type Service interface {
 	UpdateTaskState(entityID int, newState string) error
 	GetAllSprintTasks(sprintID int) ([]models.Task, error)
 	GetTaskByTicketNumber(ticketNumber string) (models.Task, error)
-	
+
 	AddTasksChanges(changes []models.TaskChange) error
-}	
+}
 
 type Repository interface {
 	AddSprint(models.Sprint) error
+	GetSprint(sprintId int) (models.Sprint, error)
 	GetAllSprints() ([]models.Sprint, error)
 	UpdateSprintStatus(sprintId int, newStatus string) error
 
@@ -37,4 +38,5 @@ type Repository interface {
 	GetTaskByTicketNumber(ticketNumber string) (models.Task, error)
 
 	AddTasksChanges(changes []models.TaskChange) error
+	GetAllSprintChanges(tasks []models.Task) ([]models.TaskChange, error)
 }

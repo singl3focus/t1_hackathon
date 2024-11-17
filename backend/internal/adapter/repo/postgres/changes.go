@@ -31,3 +31,31 @@ VALUES ($1, $2, $3, $4, $5, $6)`
 
     return nil
 }
+
+func (r *Repository) GetAllSprintChanges(tasks []models.Task) ([]models.TaskChange, error) {
+    tx, err := r.db.Beginx()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+
+    query := `SELECT * FROM data_history WHERE entity_id = &1`
+
+    changes := make([]models.TaskChange, 0, 1)
+    for _, task := range tasks {
+        var change models.TaskChange
+        err := tx.Get(&change, query, task.EntityID)
+        if err != nil {
+            tx.Rollback()
+            
+            return nil, fmt.Errorf("error getting data_history: %v", err)
+        }
+
+        changes = append(changes, change)
+    }
+
+    if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+    return changes, nil
+}

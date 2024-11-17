@@ -97,13 +97,11 @@ func (h *Handler) CheckSprintHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	is_health, err := h.service.CheckSprintHealth(sprintID)
+	answer, err := h.service.CheckSprintHealth(sprintID)
 	if err != nil {
 		h.NewErrorResponse(w, http.StatusInternalServerError, "Server error", err.Error())
 		return
 	}
-
-	answer := CheckSprintHealthResponse{IsHealth: is_health}
 	
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
